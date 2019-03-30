@@ -25,6 +25,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%% -Begin Simulation & Plot- %%%%%%%%%%%%%%%%%%%%%%%%
 samples = 1000000; % number of iterations to simulate
+                   % less samples means less accuracy, but faster time
 
 n = nargin; probs(1:n,1) = cell2mat(varargin);
 if sum(probs) > 1 % if total probability exeeds 100%, use their weights
