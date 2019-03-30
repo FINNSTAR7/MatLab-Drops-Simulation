@@ -15,6 +15,11 @@ Examples of Command Line Usage:<br />
 `simul(10, 20, 30, 40);`
 
 
-To alter the number of samples desired (default is 1,000,000) edit the "`samples`" line directly under the "`Begin Simulation & Plot`" header in the simul.m function itself.
+To alter the number of iterations simul() runs through (default is 1,000,000) edit the "`samples`" line directly under the "`Begin Simulation & Plot`" header in the simul() function itself.
+
+Note that increasing the samples will increase accuracy, however it will also increase run time by approximetely the same factor samples was increased by. The opposite is also true, decreasing the samples will decrease accuracy, but also decrease run time by approximetely the same factor the samples were decreased by. Keep this in mind when altering the function for yourself, as some computers may need a smaller sample size than others.
+
+For example, 10,000 samples may take 20 seconds. If increased by a factor of 50, for 500,000 samples, the run time will increase to approximetely 1,000 seconds.
+
 
 For any questions or additional assistance please contact me through the wiki here: https://warframe.fandom.com/wiki/Message_Wall:FINNER
