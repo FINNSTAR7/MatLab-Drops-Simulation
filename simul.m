@@ -6,7 +6,7 @@ function simul(varargin)
 
 % For a specified number of iterations and desired probibilities simul()
 % will count the number of times it takes to succeed for each probability
-% at least once, plot the data, and calculated the average/expected value
+% at least once, plot the data, and calculate the average/expected value
 % as well as the values at which 99%, 99.9%, and 99.99% certainty is
 % reached.
 
