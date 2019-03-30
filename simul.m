@@ -11,7 +11,7 @@ function simul(varargin)
 % reached.
 
 % Inputs:
-% Any list of real, positive probabilities or integers
+% Any numeric list of real, positive probabilities or integers
 
 % Outputs:
 % None
