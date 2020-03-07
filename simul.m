@@ -1,7 +1,7 @@
 function simul(varargin)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% --- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % FINNER
-% February 2, 2020
+% March 7th, 2020
 % Drop Simulation
 
 % For a specified number of iterations and desired probibilities simul()
@@ -31,7 +31,7 @@ probs = cell2mat(varargin);
 if sum(probs) >= 1 % if total probability exeeds 100%, use their weights
     probs = probs / sum(probs);
 end
-x = 0:n; sum_data = 0; sample_data = 0; null_prob = 1-sum(probs);
+x_vals = 0:n; sample_data = 0; null_prob = 1-sum(probs);
 
 if  null_prob < 0
     null_prob = 0;
@@ -41,7 +41,7 @@ tic
 for k = 1:samples
     count = zeros(n + 1, 1);
     while sum(count) < samples
-        j = randsample(x, 1, true, [null_prob probs]);
+        j = randsample(x_vals, 1, true, [null_prob probs]);
         if j >= 1
             count(j) = count(j) + 1;
         else
@@ -54,65 +54,105 @@ for k = 1:samples
     end
     if length(sample_data) < sum(count)
         sample_data((length(sample_data) + 1):sum(count)) =...
-            zeros(1, sum(count)-length(sample_data));
+            zeros(sum(count)-length(sample_data), 1);
     end
     sample_data(sum(count)) = sample_data(sum(count)) + 1;
 end
-for i=1:length(sample_data)
-    if length(sum_data) < i
-        sum_data((length(sum_data)+1):i) = zeros(1, i-length(sum_data));
-    end
-    sum_data(i) = sum_data(i) + sample_data(i);
-end
 
-max_n = length(sum_data);
-x_vals = 1:max_n; y_vals = sum_data;
+max_n = length(sample_data);
+x_vals = 1:max_n; y_vals = sample_data;
+d_x_vals = x_vals(y_vals > 0); d_y_vals = y_vals(y_vals > 0);
+average = sum(d_x_vals.*d_y_vals)/samples;
 
-average = sum(x_vals.*y_vals)/samples;
-average_p = trapezoid_data(average, x_vals, y_vals, n);
-ng(1) = reverse_trapezoid(0.99, x_vals, y_vals, n);
-ng(2) = reverse_trapezoid(0.999, x_vals, y_vals, n);
-ng(3) = reverse_trapezoid(0.9999, x_vals, y_vals, n);
-range = round((ng(3) - ng(1))/2,0);
+x_vals = linspace(d_x_vals(1), d_x_vals(end), 10000);
+y_vals = x_vals;
 
-varience = sum((x_vals.*y_vals - average).^2)/(samples -  1);
-std_err = sqrt(varience/samples);
+[~, i] = max(x_vals >= average);
+y_vals1 = interp1(d_x_vals, d_y_vals, x_vals, 'spline');
+y_vals2 = interp1(d_x_vals, d_y_vals, x_vals, 'pchip');
+y_vals(1:i) = y_vals1(1:i); y_vals(i+1:end) = y_vals2(i+1:end); 
+sum_y = sum(y_vals);
+
+average = sum(x_vals.*y_vals)/sum_y;
+mode = x_vals(y_vals == max(y_vals));
+[average_p, mode_p] =...
+    trapezoid_data(average, mode, x_vals, y_vals);
+
+[median, ng] = reverse_trapezoid(x_vals, y_vals);
+range = round((ng(3) - ng(1))/2, 0);
+
+varience = sum((x_vals.*y_vals - average).^2)/(sum_y -  1);
+std_err = sqrt(varience/sum_y);
 se_int = [-std_err; std_err];
-average_int(1:2) = 2*se_int + average;
+average_int(1:2) = 1.96*se_int + average;
 
 time = toc/60/60/24; days = fix(time); hrs = fix((time - days)*24);
 mins = fix(((time - days)*24 - hrs)*60);
 secs = (((time - days)*24 - hrs)*60 - mins)*60;
 
-% from here on is mostly just plotting customization
-x_vals = x_vals(y_vals > 0); y_vals = y_vals(y_vals > 0)/samples;
-c = linspace(0, 1, length(x_vals));
+figure; % from here on is mostly just plotting customization
+cmap = colormap(jet(length(x_vals)));
+set(gcf, 'position', [10 50 800 600]);
+c = linspace(0, 1, length(x_vals)); y_vals = y_vals/samples;
+scatter(x_vals, y_vals, 0.5, c); hold on
+c = interp1(x_vals, c, d_x_vals); d_y_vals = d_y_vals/samples;
+scatter(d_x_vals, d_y_vals, 36, c);
+yt = get(gca, 'YTick'); delta = (yt(end) - yt(1))/(length(yt) - 1);
 
-figure;
-cmap = colormap(cool(max_n)); set(gcf, 'position', [10 50 800 600]);
-scatter(x_vals, y_vals, 36, c); hold on
-yLim = get(gca, 'YLim');
+yLim = [0 yt(end)+2*delta]; set(gca, 'YLim', yLim);
+str = ['  CI_{50%%}= ' char(177), num2str(0.6745*std_err,'%.5f')...
+    '    CI_{75%%}= ' char(177), num2str(1.15*std_err,'%.5f')...
+    '    CI_{90%%}= ' char(177), num2str(1.645*std_err,'%.5f')...
+    '    CI_{95%%}= ' char(177), num2str(1.96*std_err,'%.5f')...
+    '    CI_{99%%}= ' char(177), num2str(2.576*std_err,'%.5f')];
+text(n, yLim(2)*0.0275, sprintf(str));
 
-plot([average average], yLim, 'Color', cmap(round(average), :));
-text(average + max_n*0.01, max(y_vals)*0.85, sprintf(['Average\n'...
-    num2str(average,'%.4f') ' ' char(177) ' ' num2str(2*std_err,'%.5f')...
-    '\n(' num2str(average_p*100,'%.3f') '%%)']));
+val = mode; [~, i] = max(x_vals >= val);
+plot([val val], yLim, 'Color', cmap(i, :));
+text(val, yLim(2)*0.925, sprintf([' Mode'...
+    '\n x = ' num2str(val)...
+    '\n y = ' num2str(max(y_vals)*100,'%.3f')...
+    '%%\n A = ' num2str(mode_p*100,'%.3f') '%%']));
 
-plot([ng(1) ng(1)], yLim, 'Color', cmap(round(ng(1)), :));
-text(ng(1) + max_n*0.01, max(y_vals)*0.85, sprintf([num2str(ng(1),'%.3f')...
-    '\n(99%%)']));
+val = median; [~, i] = max(x_vals >= val);
+plot([val val], yLim, 'Color', cmap(i, :));
+text(val, yLim(2)*0.775, sprintf([' Median'...
+    '\n x = ' num2str(val)...
+    '\n y = ' num2str(freq(val, x_vals, y_vals)*100,'%.3f')...
+    '%%\n A = 50%%']));
 
-plot([ng(2) ng(2)], yLim, 'Color', cmap(round(ng(2)), :));
-text(ng(2) + max_n*0.01, max(y_vals)*0.85, sprintf([num2str(ng(2),'%.3f')...
-    '\n(99.9%%)']));
+val = average; [~, i] = max(x_vals >= val);
+plot([val val], yLim, 'Color', cmap(i, :));
+text(val, yLim(2)*0.625, sprintf([' Average'...
+    '\n x = ' num2str(val)...
+    '\n y = ' num2str(freq(val, x_vals, y_vals)*100,'%.3f')...
+    '%%\n A = ' num2str(average_p*100,'%.3f') '%%']));
 
-plot([ng(3) ng(3)], yLim, 'Color', cmap(round(ng(3)), :));
-text(ng(3) + max_n*0.01, max(y_vals)*0.85, sprintf([num2str(ng(3),'%.3f')...
-    '\n(99.99%%)']));
+val = ng(1); [~, i] = max(x_vals >= val);
+plot([val val], yLim, 'Color', cmap(i, :));
+text(val, yLim(2)*0.925,...
+    sprintf([' x = ' num2str(val)...
+    '\n y = ' num2str(freq(val, x_vals, y_vals)*100,'%.3f')...
+    '%%\n A = 99%%']));
 
-title(['Number of Runs for ' addComma(samples) ' Samples']);
+val = ng(2); [~, i] = max(x_vals >= val);
+plot([val val], yLim, 'Color', cmap(i, :));
+text(val, yLim(2)*0.775,...
+    sprintf([' x = ' num2str(val)...
+    '\n y = ' num2str(freq(val, x_vals, y_vals)*100,'%.3f')...
+    '%%\n A = 99.9%%']));
+
+val = ng(3); [~, i] = max(x_vals >= val);
+plot([val val], yLim, 'Color', cmap(i, :));
+text(val, yLim(2)*0.625,...
+    sprintf([' x = ' num2str(val)...
+    '\n y = ' num2str(freq(val, x_vals, y_vals)*100,'%.3f')...
+    '%%\n A = 99.99%%']));
+
+title(sprintf(['Number of Runs for ' addComma(samples) ' Samples']));
 xlabel('Number of Runs'); ylabel('Frequency');
 xlim([0 max_n]); ax = gca; ax.YGrid = 'on'; ax.XGrid = 'on';
+set(gca, 'xscale', 'log');
 hold off
 
 fprintf(['   Time Elapsed      = ' num2str(secs) ' Seconds, '...
@@ -126,68 +166,100 @@ fprintf(['   Nearly Guaranteed = ' num2str(round(ng(2))) ' '...
 end
 
 
-function [proportion] = trapezoid_data(point, x_vals, y_vals, n)
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%% -Error Checks- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if(nargin < 4) % Check if less than two inputs
-    error(['At least four arguments are required,'...
-        'desired, x_vals, y_vals, n']);
+function [frequency] = freq(x, x_vals, y_vals)
+n = length(x_vals);
+int = x_vals(end) - x_vals(1);
+delta = int/(n - 1);
+
+x1 = floor((x - x_vals(1))/delta + x_vals(1));
+x2 = ceil((x - x_vals(1))/delta + x_vals(1));
+
+if x_vals(x2) - x_vals(x1) <= 0
+    frequency = y_vals(x1);
+else
+    frequency = (y_vals(x2) - y_vals(x1))/(x_vals(x2) - x_vals(x1));
+    frequency = frequency*(x - x_vals(x1)) + y_vals(x1);
+end
 end
 
-[x_rows, x_cols] = size(x_vals); [y_rows, y_cols] = size(y_vals);
-if(x_rows ~= y_rows || x_cols ~= y_cols) % Check if different # of data
+
+function [avg_p, mode_p] = trapezoid_data(average, mode, x_vals, y_vals)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% -Error Checks- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if(nargin < 4) % Check if less than two inputs
+    error(['At least four arguments are required:'...
+        'average, mode, x_vals, and y_vals.']);
+end
+
+n = length(x_vals); m = length(y_vals);
+if(n ~= m) % Check if different # of data
     error('The number of y values must be the same as x values.'); % points
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%% -Begin Trapezoidal Data- %%%%%%%%%%%%%%%%%%%%%%%%%
-total = trapezoid_data_step(x_vals, y_vals, n);
-x1 = floor(point); x2 = ceil(point);
-y_point = (y_vals(x2) - y_vals(x1))*(point - x1) + y_vals(x1);
-integral = (y_point + y_vals(x1))*(point - x1)/2;
-integral = integral + trapezoid_data_step(x_vals(1:x1), y_vals(1:x1), n);
-proportion = integral/total;
+int = x_vals(end) - x_vals(1);
+delta = int/(n - 1);
+total = trapezoid_data_step(x_vals, y_vals);
+
+avg1 = floor((average - x_vals(1))/delta + x_vals(1));
+avg2 = ceil((average - x_vals(1))/delta + x_vals(1));
+mode1 = floor((mode - x_vals(1))/delta + x_vals(1));
+
+y_avg = (y_vals(avg2) - y_vals(avg1))*(average - x_vals(avg1))...
+    /(x_vals(avg2) - x_vals(avg1)) + y_vals(avg1);
+integral = (y_avg + y_vals(avg1))*(average - x_vals(avg1))/2;
+integral = integral + trapezoid_data_step(x_vals(1:avg1), y_vals(1:avg1));
+avg_p = integral/total;
+
+integral = trapezoid_data_step(x_vals(1:mode1), y_vals(1:mode1));
+mode_p = integral/total;
 
 end
 
-function [point] = reverse_trapezoid(proportion, x_vals, y_vals, n)
+function [point, ng] = reverse_trapezoid(x_vals, y_vals)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% -Error Checks- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if(nargin < 4) % Check if less than two inputs
-    error(['At least four arguments are required,'...
-        'desired, x_vals, y_vals, n']);
+if(nargin < 2) % Check if less than two inputs
+    error(['At least two arguments are required:'...
+        'proportion, x_vals, and y_vals.']);
 end
 
-[x_rows, x_cols] = size(x_vals); [y_rows, y_cols] = size(y_vals);
-if(x_rows ~= y_rows || x_cols ~= y_cols) % Check if different # of data
+n = length(x_vals); m = length(y_vals);
+if(n ~= m) % Check if different # of data
     error('The number of y values must be the same as x values.'); % points
 end
 
 %%%%%%%%%%%%%%%%%%%% -Begin Reverse Trapezoidal Data- %%%%%%%%%%%%%%%%%%%%%
-total = trapezoid_data_step(x_vals, y_vals, n);
-integral = @(x) trapezoid_data_step(x_vals(1:x), y_vals(1:x), n);
+total = trapezoid_data_step(x_vals, y_vals);
+integral = @(x) trapezoid_data_step(x_vals(x:end), y_vals(x:end));
+ng = [0.5 0.99 0.999 0.9999];
 
-for i = n:length(x_vals)
-    if integral(i)/total >= proportion
-        area = proportion - integral(i-1)/total;
-        y = @(x) (y_vals(i-1) - y_vals(i))*x + y_vals(i-1);
-        func = @(x) (y_vals(i-1) + y(x-i+1))*(x-i+1)/(2*total) - area;
-        point = IQI(func, i-1, i-0.5, i);
-        break
+i = n;
+for j = 4:-1:1
+    while integral(i)/total < 1 - ng(j)
+        i = i - 1;
     end
+    area = 1 - ng(j) - integral(i+1)/total;
+    y = @(x) (y_vals(i+1) - y_vals(i))*(x_vals(i+1) - x)...
+        /(x_vals(i+1) - x_vals(i)) + y_vals(i+1);
+    func = @(x) (y_vals(i+1) + y(x))*(x_vals(i+1) - x)/total - area;
+    ng(j) = IQI(func, x_vals(i), (x_vals(i)+x_vals(i+1))/2, x_vals(i+1));
 end
+point = ng(1);
+ng = ng(2:4);
 
 end
 
-function [integral] = trapezoid_data_step(x_vals, y_vals, n)
+function [integral] = trapezoid_data_step(x_vals, y_vals)
 % Initialize values
-rows = length(x_vals);
-num_slices = rows-1;
-x_min = x_vals(n);
+n = length(x_vals);
+num_slices = n-1;
+x_min = x_vals(1);
 x_max = x_vals(end);
 integral = 0;
 
 if x_max == x_min
     integral = 0;
 else
-    for i = n:num_slices
+    for i = 1:num_slices
         integral = integral + (x_vals(i+1) - x_vals(i))*(y_vals(i) +...
             y_vals(i+1))/2;
     end
@@ -284,7 +356,7 @@ end
 
 function numOut = addComma(numIn)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% -Begin Add Comma- %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    jf=java.text.DecimalFormat; % comma for thousands, three decimal places
-    numOut= char(jf.format(numIn)); % omit "char" if you want a string out
-    
+jf=java.text.DecimalFormat; % comma for thousands, three decimal places
+numOut= char(jf.format(numIn)); % omit "char" if you want a string out
+
 end
