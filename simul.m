@@ -1,7 +1,7 @@
 function simul(varargin)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% --- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % FINNER
-% March 7th, 2020
+% July 13th, 2020
 % Drop Simulation
 
 % For a specified number of iterations and desired probibilities simul()
@@ -37,10 +37,23 @@ if  null_prob < 0
     null_prob = 0;
 end
 
-tic
+tic; t = 0; time = 0; del = 1/samples;
+str = sprintf(['Progress: 0%%\n',...
+    'ETA: 0 Seconds, 0 Minutes, 0 Hours, 0 Days']);
+f = waitbar(0, str, 'Name', 'Simulating...', 'CreateCancelBtn',...
+    'setappdata(gcbf, ''canceling'', 1)');
+setappdata(f, 'canceling', 0);
 for k = 1:samples
+    if getappdata(f, 'canceling')
+        delete(f);
+        return
+    end
     count = zeros(n + 1, 1);
     while sum(count) < samples
+        if getappdata(f, 'canceling')
+            delete(f);
+            return
+        end
         j = randsample(x_vals, 1, true, [null_prob probs]);
         if j >= 1
             count(j) = count(j) + 1;
@@ -57,7 +70,33 @@ for k = 1:samples
             zeros(sum(count)-length(sample_data), 1);
     end
     sample_data(sum(count)) = sample_data(sum(count)) + 1;
+    
+    if mod(k/samples, del) < 1/samples
+        if getappdata(f, 'canceling')
+            delete(f);
+            return
+        end
+        
+        i = 100*k/samples;
+        t_old = t; t = toc; time = time + (t - t_old);
+        eta = time/k; eta = eta*(samples - k);
+        eta = eta/60/60/24; days = fix(eta); hrs = fix((eta - days)*24);
+        mins = fix(((eta - days)*24 - hrs)*60);
+        secs = fix((((eta - days)*24 - hrs)*60 - mins)*60);
+        eta = [num2str(secs) ' Seconds, ' num2str(mins) ' Minutes, '...
+            num2str(hrs) ' Hours, ' num2str(days) ' Days'];
+        str = sprintf(['Progress: ', num2str(floor(i)), '%%\n',...
+            'ETA: ', eta]);
+        waitbar(i/100, f, str);
+        
+        if (t - t_old) < 0.5
+            del = del*2;
+        elseif (t - t_old) > 1.5
+            del = del/2;
+        end
+    end
 end
+waitbar(1, f, 'Simulation Finished!'); pause(1); delete(f);
 
 max_n = length(sample_data);
 x_vals = 1:max_n; y_vals = sample_data;
@@ -70,19 +109,16 @@ y_vals = x_vals;
 [~, i] = max(x_vals >= average);
 y_vals1 = interp1(d_x_vals, d_y_vals, x_vals, 'spline');
 y_vals2 = interp1(d_x_vals, d_y_vals, x_vals, 'pchip');
-y_vals(1:i) = y_vals1(1:i); y_vals(i+1:end) = y_vals2(i+1:end); 
-sum_y = sum(y_vals);
+y_vals(1:i) = y_vals1(1:i); y_vals(i+1:end) = y_vals2(i+1:end);
 
-average = sum(x_vals.*y_vals)/sum_y;
 mode = x_vals(y_vals == max(y_vals));
-[average_p, mode_p] =...
-    trapezoid_data(average, mode, x_vals, y_vals);
+[average_p, mode_p] = trapezoid_data(average, mode, x_vals, y_vals);
 
-[median, ng] = reverse_trapezoid(x_vals, y_vals);
+[median, ng] = reverse_trapezoid(d_x_vals, d_y_vals);
 range = round((ng(3) - ng(1))/2, 0);
 
-varience = sum((x_vals.*y_vals - average).^2)/(sum_y -  1);
-std_err = sqrt(varience/sum_y);
+varience = sum(d_y_vals.*(d_x_vals.^2))/samples - average^2;
+std_err = sqrt(varience);
 se_int = [-std_err; std_err];
 average_int(1:2) = 1.96*se_int + average;
 
@@ -90,6 +126,7 @@ time = toc/60/60/24; days = fix(time); hrs = fix((time - days)*24);
 mins = fix(((time - days)*24 - hrs)*60);
 secs = (((time - days)*24 - hrs)*60 - mins)*60;
 
+%
 figure; % from here on is mostly just plotting customization
 cmap = colormap(jet(length(x_vals)));
 set(gcf, 'position', [10 50 800 600]);
@@ -154,6 +191,7 @@ xlabel('Number of Runs'); ylabel('Frequency');
 xlim([0 max_n]); ax = gca; ax.YGrid = 'on'; ax.XGrid = 'on';
 set(gca, 'xscale', 'log');
 hold off
+%}
 
 fprintf(['   Time Elapsed      = ' num2str(secs) ' Seconds, '...
     num2str(mins) ' Minutes, ' num2str(hrs) ' Hours, ' num2str(days)...
