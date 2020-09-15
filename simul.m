@@ -80,13 +80,9 @@ end
 assignin('base', 'probabilities', probabilities); probs = probabilities;
 
 if isempty(inputs{3})
-    if ~exist('parts', 'var')
+    if ~exist('parts', 'var') || length(parts) ~= n
         parts = ones([1 n]);
     end
-elseif length(str2num(inputs{3})) ~= n
-    clearvars -except samples probabilities parts
-    error([num2str(n) ' probabilties were given, but '...
-        num2str(length(str2num(inputs{3}))) ' part counts were specified.']);
 else
     parts = str2num(inputs{3});
 end
