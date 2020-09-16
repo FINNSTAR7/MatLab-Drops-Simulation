@@ -223,7 +223,7 @@ mins = fix(((time - days)*24 - hrs)*60);
 secs = (((time - days)*24 - hrs)*60 - mins)*60;
 
 %
-figure; % from here on is mostly just plotting customization
+f = figure; % from here on is mostly just plotting customization
 cmap = colormap(jet(length(x_vals)));
 set(gcf, 'position', [10 50 800 600]); d_y_vals = d_y_vals/samples;
 b = bar(d_x_vals, d_y_vals, 'FaceColor', 'flat'); hold on
@@ -375,6 +375,15 @@ avg_ind1 = floor((average - x_vals(1))/delta + x_vals(1)) - x_vals(1) + 1;
 avg_ind2 = ceil((average - x_vals(1))/delta + x_vals(1)) - x_vals(1) + 1;
 mode_ind = floor((mode - x_vals(1))/delta + x_vals(1)) - x_vals(1) + 1;
 
+if avg_ind1 <= 0
+    avg_ind1 = 1;
+end
+if avg_ind2 <= 0
+    avg_ind2 = 1;
+end
+if mode_ind <= 0
+    mode_ind = 1;
+end
 if avg_ind1 ~= avg_ind2
     y_avg = (y_vals(avg_ind1) - y_vals(avg_ind2))*(x_vals(avg_ind1) -...
         average)/(x_vals(avg_ind1) - x_vals(avg_ind2)) + y_vals(avg_ind2);
